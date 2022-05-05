@@ -1,0 +1,79 @@
+name: Release
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: false
+
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout BoringTun
+        uses: actions/checkout@v3
+        with:
+          repository: cloudflare/boringtun
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: ${{ matrix.cross }}
+          command: build
+          args: --release --bin boringtun-cli --target=${{ matrix.target }}
+
+      - name: Pack
+        run: |
+          mkdir -p release-${{ matrix.target }}
+          mv ./target/${{ matrix.target }}/release/boringtun-cli ./release-${{ matrix.target }}/boringtun-cli
+          cd ./release-${{ matrix.target }}
+          tar -czf boringtun-cli-${{ matrix.target }}.tar.gz boringtun-cli
+          rm -rf boringtun-cli
+          if [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
+            brew install md5sha1sum
+          fi
+          md5sum boringtun-cli-${{ matrix.target }}.tar.gz > boringtun-cli-${{ matrix.target }}.tar.gz.md5
+
+      - name: Get release info
+        id: info
+        run: |
+          echo "::set-output name=date::$(date +'%Y-%m-%dT%H:%M:%S')"
+          echo "::set-output name=sha::$(git rev-parse HEAD)"
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: Build from https://github.com/cloudflare/boringtun/commit/${{ steps.info.outputs.sha }}
+          files: release-${{ matrix.target }}/*
+          name: ${{ steps.info.outputs.date }}
+          tag_name: latest
