@@ -73,7 +73,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          body: Build from https://github.com/cloudflare/boringtun/commit/${{ steps.info.outputs.sha }}
+          body: Built from https://github.com/cloudflare/boringtun/commit/${{ steps.info.outputs.sha }}
           files: release-${{ matrix.target }}/*
           name: ${{ steps.info.outputs.date }}
           tag_name: latest
